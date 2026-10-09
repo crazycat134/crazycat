@@ -1,0 +1,59 @@
+# ===== 密钥/配置（绝对不能上传）=====
+config/secrets.env
+config/secrets.env.local
+.env
+.env.local
+
+# ===== 数据库（本地数据）=====
+data/app.db
+data/*.db
+data/*.db-journal
+
+# ===== 图片（用户私有数据）=====
+images/imported/
+images/uploads/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+
+# ===== 日志 =====
+logs/
+*.log
+*.out.log
+*.err.log
+
+# ===== 打包/构建产物 =====
+dist/
+build/
+*.spec
+
+# ===== Python 缓存 =====
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ===== 运行时文件 =====
+*.pid
+*.pid.lock
+
+# ===== IDE/编辑器 =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== 操作系统 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 临时文件 =====
+*.tmp
+*.temp

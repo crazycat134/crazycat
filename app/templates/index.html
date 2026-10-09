@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Secondhand EC Agent V3</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f6f8; color: #1a1a1a; height: 100vh; overflow: hidden; }
+
+  /* 顶部栏 */
+  .header { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .header .status { font-size: 13px; color: #6b7280; }
+  .header .status.ok { color: #059669; }
+
+  /* 统计卡片 */
+  .stats-bar { background: #fff; padding: 12px 20px; border-bottom: 1px solid #e5e7eb; display: flex; gap: 24px; }
+  .stat { text-align: center; }
+  .stat .num { font-size: 20px; font-weight: 700; }
+  .stat .label { font-size: 12px; color: #6b7280; margin-top: 2px; }
+
+  /* 主体分栏 */
+  .main { display: flex; height: calc(100vh - 110px); }
+
+  /* 左侧列表 */
+  .sidebar { width: 340px; background: #fff; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; }
+  .sidebar .toolbar { padding: 12px; border-bottom: 1px solid #e5e7eb; }
+  .sidebar .toolbar input { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
+  .sidebar .toolbar .filters { display: flex; gap: 8px; margin-top: 8px; }
+  .sidebar .toolbar select { padding: 6px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+
+  .product-list { flex: 1; overflow-y: auto; }
+  .product-item { padding: 12px; border-bottom: 1px solid #f3f4f6; cursor: pointer; transition: background 0.15s; }
+  .product-item:hover { background: #f9fafb; }
+  .product-item.active { background: #eff6ff; border-left: 3px solid #2563eb; }
+  .product-item .row { display: flex; gap: 10px; }
+  .product-item .thumb { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; background: #f3f4f6; flex-shrink: 0; }
+  .product-item .info { flex: 1; min-width: 0; }
+  .product-item .title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .product-item .price { font-size: 14px; font-weight: 600; color: #dc2626; margin-top: 2px; }
+  .product-item .meta { font-size: 12px; color: #6b7280; margin-top: 4px; display: flex; gap: 6px; }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+  .badge-confirmed { background: #d1fae5; color: #065f46; }
+  .badge-pending { background: #fef3c7; color: #92400e; }
+  .badge-draft { background: #e0e7ff; color: #3730a3; }
+
+  /* 右侧编辑面板 */
+  .detail { flex: 1; overflow-y: auto; padding: 20px; background: #f9fafb; }
+  .detail .empty { text-align: center; padding: 80px 20px; color: #9ca3af; }
+  .detail-card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+
+  .detail-card h2 { font-size: 18px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; color: #6b7280; margin-bottom: 6px; font-weight: 500; }
+  .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
+  .form-group textarea { resize: vertical; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .checkbox-row input[type=checkbox] { width: 16px; height: 16px; }
+  .checkbox-row label { font-size: 14px; margin: 0; }
+
+  .accessory-grid { display: flex; gap: 16px; flex-wrap: wrap; padding: 8px 0; }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb; }
+  .btn { padding: 8px 16px; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-size: 14px; }
+  .btn-primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-danger { color: #dc2626; border-color: #fecaca; }
+  .btn-sm { padding: 4px 10px; font-size: 13px; }
+
+  .checklist-box { margin-top: 16px; padding: 12px; background: #f0f9ff; border-radius: 8px; font-size: 13px; line-height: 1.8; }
+  .checklist-box b { color: #1e40af; }
+
+  /* 草稿 tab */
+  .tab-bar { display: flex; border-bottom: 1px solid #e5e7eb; }
+  .tab { padding: 10px 16px; cursor: pointer; font-size: 14px; color: #6b7280; border-bottom: 2px solid transparent; }
+  .tab.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Secondhand EC Agent V3</h1>
+  <div style="display:flex; gap:12px; align-items:center;">
+    <button class="btn btn-primary btn-sm" onclick="showAddForm()">+ 添加商品</button>
+    <div class="status ok">● 就绪</div>
+  </div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat"><div class="num" id="stat-total">0</div><div class="label">正式商品</div></div>
+  <div class="stat"><div class="num" id="stat-confirmed">0</div><div class="label">已确认</div></div>
+  <div class="stat"><div class="num" id="stat-unconfirmed">0</div><div class="label">待确认</div></div>
+  <div class="stat"><div class="num" id="stat-drafts">0</div><div class="label">草稿</div></div>
+</div>
+
+<div class="main">
+  <!-- 左侧列表 -->
+  <div class="sidebar">
+    <div class="tab-bar">
+      <div class="tab active" data-tab="products">商品</div>
+      <div class="tab" data-tab="drafts">草稿</div>
+    </div>
+    <div class="toolbar">
+      <input type="text" id="search" placeholder="搜索标题...">
+      <div class="filters">
+        <select id="filter-status">
+          <option value="">全部状态</option>
+        </select>
+        <select id="filter-confirmed">
+          <option value="">全部</option>
+          <option value="1">已确认</option>
+          <option value="0">待确认</option>
+        </select>
+      </div>
+    </div>
+    <div style="padding:8px 12px; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; gap:8px; font-size:13px; color:#6b7280; background:#fafafa;">
+      <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)" style="width:16px; height:16px;">
+      <label for="select-all" style="cursor:pointer; margin:0;">全選択</label>
+    </div>
+    <div class="product-list" id="list"></div>
+    <!-- 批量操作栏 -->
+    <div id="batch-bar" style="display:none; position:sticky; bottom:0; background:#1f2937; color:#fff; padding:12px 16px; border-radius:10px; margin-top:8px; align-items:center; justify-content:space-between; box-shadow:0 -4px 12px rgba(0,0,0,0.1);">
+      <span id="batch-count" style="font-size:14px;">已选 0 件</span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-sm" style="background:#374151; color:#fff;" onclick="clearSelection()">取消</button>
+        <button class="btn btn-sm" style="background:#ef4444; color:#fff;" onclick="batchDelete()">删除</button>
+        <button class="btn btn-sm" style="background:#22c55e; color:#fff;" onclick="batchConfirm()">✓ 批量确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧编辑面板 -->
+  <div class="detail" id="detail">
+    <div class="empty">
+      <p>← 选择左侧商品查看详情</p>
+      <p style="margin-top:8px; font-size:13px;">或添加新商品</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATUS_LABELS = {
+  BRAND_NEW: '新品', ALMOST_NEW: '几乎全新', CLEAN: '干净',
+  LITTLE_DIRTY: '微脏', DIRTY: '脏', BAD: '差'
+};
+
+let allProducts = [];
+let allDrafts = [];
+let selectedId = null;
+let selectedIds = new Set(); // 多选
+let currentTab = 'products';
+
+function toggleSelect(id, checked) {
+  if (checked) selectedIds.add(id);
+  else selectedIds.delete(id);
+  renderList();
+}
+
+function toggleSelectAll(checked) {
+  const list = currentTab === 'products' ? allProducts : allDrafts;
+  if (checked) {
+    list.forEach(p => selectedIds.add(p.id));
+  } else {
+    list.forEach(p => selectedIds.delete(p.id));
+  }
+  renderList();
+}
+
+async function batchConfirm() {
+  if (selectedIds.size === 0) return;
+  if (!confirm(`确认 ${selectedIds.size} 件商品？确认后 Automa 可读取上架`)) return;
+  for (const id of selectedIds) {
+    await fetch(`/api/products/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirmed: 1 })
+    });
+  }
+  selectedIds.clear();
+  loadList();
+  showToast('批量确认完成');
+}
+
+async function batchDelete() {
+  if (selectedIds.size === 0) return;
+  if (!confirm(`删除 ${selectedIds.size} 件商品？此操作不可恢复`)) return;
+  for (const id of selectedIds) {
+    await fetch(`/api/products/${id}`, { method: 'DELETE' });
+  }
+  selectedIds.clear();
+  loadList();
+  showToast('批量删除完成');
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  renderList();
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function loadList() {
+  const r = await fetch('/api/products?all=1');
+  const j = await r.json();
+  allProducts = j.data || [];
+  renderList();
+  updateStats();
+}
+
+async function loadDrafts() {
+  const r = await fetch('/api/drafts');
+  const j = await r.json();
+  allDrafts = j.data || [];
+  updateStats();
+  if (currentTab === 'drafts') renderList();
+}
+
+function updateStats() {
+  const confirmed = allProducts.filter(p => p.confirmed).length;
+  document.getElementById('stat-total').textContent = allProducts.length;
+  document.getElementById('stat-confirmed').textContent = confirmed;
+  document.getElementById('stat-unconfirmed').textContent = allProducts.length - confirmed;
+  document.getElementById('stat-drafts').textContent = allDrafts.length;
+}
+
+function renderList() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const fStatus = document.getElementById('filter-status').value;
+  const fConfirmed = document.getElementById('filter-confirmed').value;
+
+  let list = currentTab === 'products' ? allProducts : allDrafts;
+
+  let rows = list.filter(p => {
+    if (search && !p.title.toLowerCase().includes(search)) return false;
+    if (currentTab === 'products') {
+      if (fStatus && p.status !== fStatus) return false;
+      if (fConfirmed !== '' && String(p.confirmed ? 1 : 0) !== fConfirmed) return false;
+    }
+    return true;
+  });
+
+  const container = document.getElementById('list');
+  if (rows.length === 0) {
+    container.innerHTML = '<div style="padding:40px; text-align:center; color:#9ca3af; font-size:14px;">暂无商品</div>';
+    return;
+  }
+
+  container.innerHTML = rows.map(p => {
+    const thumb = (p.images || [])[0] || (p.image_paths || [])[0];
+    let stage;
+    if (currentTab === 'drafts') stage = 'draft';
+    else if (p.confirmed) stage = 'confirmed';
+    else if (p.works_confirmed) stage = 'ready';
+    else stage = 'testing';
+    const stageBadge = {
+      draft: '<span class="badge badge-draft">草稿</span>',
+      testing: '<span class="badge badge-pending">待测试</span>',
+      ready: '<span class="badge badge-confirmed">待确认上架</span>',
+      confirmed: '<span class="badge" style="background:#dcfce7; color:#166534;">✓ 已确认</span>',
+    }[stage];
+    const checked = selectedIds.has(p.id) ? 'checked' : '';
+    return `
+      <div class="product-item ${selectedId === p.id ? 'active' : ''}" data-id="${p.id}">
+        <div class="row">
+          <input type="checkbox" class="row-check" data-id="${p.id}" ${checked} onchange="toggleSelect(${p.id}, this.checked)" style="margin-right:8px; width:16px; height:16px; flex-shrink:0;">
+          ${thumb ? `<img class="thumb" src="${esc(thumb)}">` : '<div class="thumb"></div>'}
+          <div class="info">
+            <div class="title">${esc(p.title)}</div>
+            <div class="price">¥${Number(p.price).toLocaleString()}</div>
+            <div class="meta">${stageBadge} <span>${esc(STATUS_LABELS[p.status] || p.status)}</span></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // 绑定点击
+  container.querySelectorAll('.product-item').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target.classList.contains('row-check')) return;
+      selectedId = Number(el.dataset.id);
+      renderList();
+      renderDetail();
+    });
+  });
+
+  // 显示/隐藏批量操作栏
+  const batchBar = document.getElementById('batch-bar');
+  if (batchBar) {
+    if (selectedIds.size > 0) {
+      batchBar.style.display = 'flex';
+      document.getElementById('batch-count').textContent = `已选 ${selectedIds.size} 件`;
+    } else {
+      batchBar.style.display = 'none';
+    }
+  }
+}
+
+function renderDetail() {
+  const detail = document.getElementById('detail');
+  if (!selectedId) {
+    detail.innerHTML = '<div class="empty"><p>← 选择左侧商品查看详情</p></div>';
+    return;
+  }
+
+  const list = currentTab === 'products' ? allProducts : allDrafts;
+  const p = list.find(x => x.id === selectedId);
+  if (!p) {
+    detail.innerHTML = '<div class="empty"><p>商品不存在</p></div>';
+    return;
+  }
+
+  detail.innerHTML = `
+    <div class="detail-card">
+      <h2>${esc(p.title)}</h2>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>价格（日元）</label>
+          <input type="number" id="f-price" value="${esc(p.price)}">
+        </div>
+        <div class="form-group">
+          <label>状态</label>
+          <select id="f-status">__STATUS_OPTIONS__</select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>分类（用 > 分隔）</label>
+        <input id="f-categories" value="${esc((p.categories || []).join(' > '))}">
+      </div>
+
+      <div class="form-group">
+        <label>描述</label>
+        <textarea id="f-description" rows="4">${esc(p.description || '')}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label>动作确认 / 附件</label>
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-works" ${p.works_confirmed ? 'checked' : ''}>
+          <label for="f-works">動作確認済み（正常動作確認済）</label>
+        </div>
+        <div class="accessory-grid">
+          <div class="checkbox-row"><input type="checkbox" id="acc-box" value="box" ${(p.accessories || []).includes('box') ? 'checked' : ''}><label for="acc-box">箱</label></div>
+          <div class="checkbox-row"><input type="checkbox" id="acc-manual" value="manual" ${(p.accessories || []).includes('manual') ? 'checked' : ''}><label for="acc-manual">説明書</label></div>
+          <div class="checkbox-row"><input type="checkbox" id="acc-charger" value="charger" ${(p.accessories || []).includes('charger') ? 'checked' : ''}><label for="acc-charger">充電器</label></div>
+          <div class="checkbox-row"><input type="checkbox" id="acc-other" value="other" ${(p.accessories || []).includes('other') ? 'checked' : ''}><label for="acc-other">その他</label></div>
+        </div>
+      </div>
+
+      ${currentTab === 'products' ? `
+      <div class="form-group">
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-confirmed" ${p.confirmed ? 'checked' : ''}>
+          <label for="f-confirmed">已确认（Automa 可读取上架）</label>
+        </div>
+      </div>
+      ` : ''}
+
+      <div class="checklist-box" id="checklist-box" style="display:none;"></div>
+
+      <!-- 定价助手 -->
+      <div style="margin-top:16px; padding:12px; background:#fefce8; border-radius:8px; font-size:13px;">
+        <b>💰 定价助手</b>
+        <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+          <input type="number" id="base-price" placeholder="全新品価格" style="width:120px; padding:4px 8px; border:1px solid #d1d5db; border-radius:4px;">
+          <button class="btn btn-sm" onclick="calcPrice()">計算</button>
+          <span id="price-result" style="margin-left:8px;"></span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="save()">保存</button>
+        <button class="btn" onclick="aiGen()">AI 生成描述</button>
+        <button class="btn" onclick="aiChecklist()">AI 分析 checklist</button>
+        ${currentTab === 'drafts' ? '<button class="btn" onclick="convertDraft()">转正式</button>' : ''}
+        <button class="btn btn-danger" onclick="del()">删除</button>
+      </div>
+    </div>
+  `;
+
+  // 设置下拉选中
+  document.getElementById('f-status').value = p.status;
+}
+
+function getAccessories() {
+  return ['box', 'manual', 'charger', 'other'].filter(a => document.getElementById('acc-' + a).checked);
+}
+
+function showAddForm() {
+  const detail = document.getElementById('detail');
+  detail.innerHTML = `
+    <div class="detail-card">
+      <h2>💰 価格診断</h2>
+      <p class="meta" style="margin-bottom:16px;">ブランドと型番を入力すると、状態・付属品・動作確認の組み合わせ別に推奨価格を診断します。</p>
+
+      <!-- 输入区 -->
+      <div style="display:flex; gap:8px; margin-bottom:20px;">
+        <input id="add-brand" placeholder="ブランド（例：Panasonic）" style="flex:1; padding:8px 12px; border:1px solid #d1d5db; border-radius:8px;">
+        <input id="add-model" placeholder="型番（例：DC-GF9）" style="flex:1; padding:8px 12px; border:1px solid #d1d5db; border-radius:8px;">
+        <button class="btn btn-primary" onclick="aiPriceSuggest()">診断する</button>
+      </div>
+
+      <!-- 价格矩阵 - 卡片式布局 -->
+      <div id="price-matrix" style="display:none;">
+        <div style="font-size:13px; color:#6b7280; margin-bottom:12px;">推奨価格 — クリックして選択</div>
+        <div id="matrix-body" style="display:flex; flex-direction:column; gap:12px;">
+        </div>
+
+        <div style="margin-top:20px; font-size:13px;">
+          <div style="font-weight:600; margin-bottom:8px;">動作確認</div>
+          <div style="display:flex; gap:12px;">
+            <div id="card-works-ok" onclick="selectWorks(true)" style="flex:1; padding:14px; background:#f0fdf4; border:2px solid transparent; border-radius:12px; text-align:center; cursor:pointer; transition:all 0.2s;">
+              <div style="font-size:12px; color:#166534; margin-bottom:4px;">✓ 動作確認済み</div>
+              <div style="font-size:20px; font-weight:700; color:#166534;" id="price-works-ok">-</div>
+              <div style="font-size:11px; color:#166534; opacity:0.7; margin-top:4px;">価格 95%</div>
+            </div>
+            <div id="card-works-ng" onclick="selectWorks(false)" style="flex:1; padding:14px; background:#fef2f2; border:2px solid transparent; border-radius:12px; text-align:center; cursor:pointer; transition:all 0.2s;">
+              <div style="font-size:12px; color:#991b1b; margin-bottom:4px;">⚠ 動作未確認（ジャンク）</div>
+              <div style="font-size:20px; font-weight:700; color:#991b1b;" id="price-works-ng">-</div>
+              <div style="font-size:11px; color:#991b1b; opacity:0.7; margin-top:4px;">価格 50%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 选中条件 + 创建按钮 -->
+        <div id="selected-info" style="display:none; margin-top:20px; padding:14px; background:#eff6ff; border-radius:12px; font-size:14px;">
+          <div style="margin-bottom:8px;">選択中：<b id="sel-summary"></b></div>
+          <button class="btn btn-primary" onclick="createFromSelection()">この条件で出品する →</button>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" onclick="renderDetail()">戻る</button>
+      </div>
+    </div>
+  `;
+}
+
+async function aiPriceSuggest() {
+  const brand = document.getElementById('add-brand').value;
+  const model = document.getElementById('add-model').value;
+  if (!brand || !model) { showToast('ブランドと型番を入力してください'); return; }
+  showToast('AI が価格を調査中...');
+
+  // 先调 AI 查全新品价格
+  const r = await fetch('/api/suggest_price', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ brand, model })
+  });
+  const j = await r.json();
+  const basePrice = j.new_price || 30000;
+  showToast(`新品参考価格：¥${basePrice.toLocaleString()}（${j.note || ''}）`);
+
+  // 保存当前选择
+  window._selStatus = null;
+  window._selAccessory = null;
+  window._selWorks = null;
+  const statuses = [
+    { key: 'BRAND_NEW', label: '新品・未使用', mult: 1.0 },
+    { key: 'CLEAN', label: '目立った傷や汚れなし', mult: 0.9 },
+    { key: 'LITTLE_DIRTY', label: 'やや傷や汚れあり', mult: 0.8 },
+  ];
+  const accessories = [
+    { key: 'none', label: '付属品なし', bonus: 0, list: [] },
+    { key: 'box_manual', label: '箱・説明書', bonus: 0.07, list: ['box', 'manual'] },
+    { key: 'all', label: '箱・説明書・充電器', bonus: 0.10, list: ['box', 'manual', 'charger'] },
+  ];
+
+  let html = '';
+  statuses.forEach((s, si) => {
+    html += `<div>`;
+    html += `<div style="font-size:13px; font-weight:600; color:#374151; margin-bottom:8px;">${s.label}</div>`;
+    html += `<div style="display:flex; gap:8px;">`;
+    accessories.forEach((a, ai) => {
+      const price = Math.round(basePrice * (s.mult + a.bonus));
+      html += `<div onclick="selectCell(${si},${ai},${price})" id="cell-${si}-${ai}" style="flex:1; padding:12px; background:#f9fafb; border:2px solid transparent; border-radius:10px; text-align:center; cursor:pointer; transition:all 0.2s;">`;
+      html += `<div style="font-size:11px; color:#6b7280; margin-bottom:4px;">${a.label}</div>`;
+      html += `<div style="font-size:16px; font-weight:700; color:#111827;">¥${price.toLocaleString()}</div>`;
+      html += `</div>`;
+    });
+    html += `</div>`;
+    html += `</div>`;
+  });
+  document.getElementById('matrix-body').innerHTML = html;
+
+  document.getElementById('price-works-ok').textContent = '¥' + Math.round(basePrice * 0.95).toLocaleString();
+  document.getElementById('price-works-ng').textContent = '¥' + Math.round(basePrice * 0.5).toLocaleString();
+
+  document.getElementById('price-matrix').style.display = 'block';
+  showToast('診断完了 — 価格をクリックして選択');
+}
+
+function selectCell(si, ai, price) {
+  // 清除之前的选中
+  document.querySelectorAll('#matrix-body div[id^="cell-"]').forEach(div => {
+    div.style.background = '#f9fafb';
+    div.style.borderColor = 'transparent';
+  });
+  // 选中当前
+  const cell = document.getElementById(`cell-${si}-${ai}`);
+  cell.style.background = '#dbeafe';
+  cell.style.borderColor = '#3b82f6';
+  window._selStatus = ['BRAND_NEW', 'CLEAN', 'LITTLE_DIRTY'][si];
+  window._selAccessory = [
+    { key: 'none', list: [] },
+    { key: 'box_manual', list: ['box', 'manual'] },
+    { key: 'all', list: ['box', 'manual', 'charger'] },
+  ][ai];
+  window._selPrice = price;
+  updateSelectedInfo();
+}
+
+function selectWorks(ok) {
+  window._selWorks = ok;
+  document.getElementById('card-works-ok').style.borderColor = ok ? '#166534' : 'transparent';
+  document.getElementById('card-works-ng').style.borderColor = !ok ? '#991b1b' : 'transparent';
+  updateSelectedInfo();
+}
+
+function updateSelectedInfo() {
+  if (window._selStatus && window._selAccessory && window._selWorks !== null) {
+    const statusLabel = { 'BRAND_NEW': '新品・未使用', 'CLEAN': '目立った傷や汚れなし', 'LITTLE_DIRTY': 'やや傷や汚れあり' }[window._selStatus];
+    const worksLabel = window._selWorks ? '動作確認済み' : '動作未確認';
+    document.getElementById('sel-summary').textContent = `${statusLabel} / ${window._selAccessory.key === 'none' ? '付属品なし' : window._selAccessory.label} / ${worksLabel}`;
+    document.getElementById('selected-info').style.display = 'block';
+  }
+}
+
+async function createFromSelection() {
+  const brand = document.getElementById('add-brand').value;
+  const model = document.getElementById('add-model').value;
+  const title = `${brand} ${model}`;
+  const r = await fetch('/api/products', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: title,
+      price: window._selPrice, // 用选中格子的价格
+      status: window._selStatus,
+      accessories: window._selAccessory.list,
+      works_confirmed: window._selWorks,
+    })
+  });
+  const j = await r.json();
+  if (j.id) {
+    selectedId = j.id;
+    loadList();
+    renderDetail();
+    showToast(`商品を作成しました（¥${window._selPrice.toLocaleString()}）`);
+  } else {
+    showToast('作成失敗：' + (j.error || ''));
+  }
+}
+
+async function doAdd() {
+  const body = {
+    title: document.getElementById('add-title').value,
+    price: Number(document.getElementById('add-price').value),
+    status: document.getElementById('add-status').value,
+    categories: document.getElementById('add-categories').value,
+  };
+  const r = await fetch('/api/products', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const j = await r.json();
+  if (j.id) {
+    selectedId = j.id;
+    loadList();
+    renderDetail();
+  } else {
+    alert('添加失败：' + (j.error || ''));
+  }
+}
+
+async function save() {
+  const body = {
+    title: document.getElementById('detail').querySelector('h2').textContent,
+    price: Number(document.getElementById('f-price').value),
+    status: document.getElementById('f-status').value,
+    description: document.getElementById('f-description').value,
+    categories: document.getElementById('f-categories').value,
+    works_confirmed: document.getElementById('f-works').checked,
+    accessories: getAccessories(),
+  };
+  if (currentTab === 'products') {
+    body.confirmed = document.getElementById('f-confirmed').checked;
+  }
+  const resp = await fetch('/api/products/' + selectedId, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const jj = await resp.json();
+  alert(jj.ok ? '已保存' : '保存失败：' + (jj.error || ''));
+  loadList();
+}
+
+async function calcPrice() {
+  const base = Number(document.getElementById('base-price').value);
+  if (!base) { showToast('请输入全新品价格'); return; }
+  const status = document.getElementById('f-status').value;
+  const accessories = getAccessories();
+  const r = await fetch('/api/calculate_price', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base_price: base, status, accessories })
+  });
+  const j = await r.json();
+  document.getElementById('price-result').innerHTML =
+    `推奨価格：<b>¥${j.center.toLocaleString()}</b>（¥${j.low.toLocaleString()}〜¥${j.high.toLocaleString()}）`;
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#1f2937; color:#fff; padding:10px 20px; border-radius:8px; font-size:14px; z-index:9999; box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity = '0'; }, 2000);
+}
+
+async function aiGen() {
+  const title = document.getElementById('detail').querySelector('h2').textContent;
+  const status = document.getElementById('f-status').value;
+  const works = document.getElementById('f-works').checked;
+  const accessories = getAccessories();
+  const r = await fetch('/api/generate_description', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, status, works_confirmed: works, accessories })
+  });
+  const j = await r.json();
+  if (j.description) {
+    document.getElementById('f-description').value = j.description;
+    showToast('AI 生成描述已填入');
+  } else {
+    showToast('生成失败：' + (j.error || ''));
+  }
+}
+
+function checkAllWorks() {
+  const box = document.getElementById('checklist-box');
+  if (!box) return;
+  const allChk = box.querySelectorAll('.chk-item');
+  const worksChk = document.getElementById('f-works');
+  if (!worksChk) return;
+  // 检查动作确认项（前半部分）是否全部勾选
+  const worksItems = box.querySelectorAll('label');
+  let worksCount = 0;
+  let worksChecked = 0;
+  let inAccessories = false;
+  worksItems.forEach(label => {
+    if (label.textContent.includes('標準付属品')) { inAccessories = true; return; }
+    if (!inAccessories) {
+      worksCount++;
+      if (label.querySelector('input').checked) worksChecked++;
+    }
+  });
+  if (worksCount > 0 && worksCount === worksChecked) {
+    worksChk.checked = true;
+  }
+}
+
+async function aiChecklist() {
+  const title = document.getElementById('detail').querySelector('h2').textContent;
+  const r = await fetch('/api/generate_checklist', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title })
+  });
+  const j = await r.json();
+  const box = document.getElementById('checklist-box');
+  box.style.display = 'block';
+  box.innerHTML = `
+    <b>動作確認チェックリスト：</b><br>
+    ${(j.works_items || []).map(i => `<label style="display:block; padding:2px 0; cursor:pointer;"><input type="checkbox" class="chk-item" onchange="checkAllWorks()"> ${esc(i)}</label>`).join('')}
+    <br><b>標準付属品：</b><br>
+    ${(j.standard_accessories || []).map(i => `<label style="display:block; padding:2px 0; cursor:pointer;"><input type="checkbox" class="chk-item"> ${esc(i)}</label>`).join('')}
+  `;
+}
+
+async function del() {
+  if (!confirm('删除此商品？')) return;
+  await fetch('/api/products/' + selectedId, { method: 'DELETE' });
+  selectedId = null;
+  renderDetail();
+  loadList();
+  loadDrafts();
+}
+
+async function convertDraft() {
+  const body = {
+    title: document.getElementById('detail').querySelector('h2').textContent,
+    price: Number(document.getElementById('f-price').value),
+    status: document.getElementById('f-status').value,
+    description: document.getElementById('f-description').value,
+    categories: document.getElementById('f-categories').value,
+    works_confirmed: document.getElementById('f-works').checked,
+    accessories: getAccessories(),
+  };
+  await fetch('/api/products/' + selectedId, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  alert('已转正式商品');
+  currentTab = 'products';
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'products'));
+  loadList();
+  loadDrafts();
+}
+
+// 搜索/筛选
+document.getElementById('search').addEventListener('input', renderList);
+document.getElementById('filter-status').addEventListener('change', renderList);
+document.getElementById('filter-confirmed').addEventListener('change', renderList);
+
+// Tab 切换
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    currentTab = tab.dataset.tab;
+    selectedId = null;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+    renderList();
+    renderDetail();
+  });
+});
+
+loadList();
+loadDrafts();
+</script>
+</body>
+</html>
